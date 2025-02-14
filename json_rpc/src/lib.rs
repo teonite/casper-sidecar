@@ -85,7 +85,11 @@ mod request;
 mod request_handlers;
 mod response;
 
+use std::collections::HashMap;
+
+use datasize::DataSize;
 use http::{header::CONTENT_TYPE, Method};
+use serde::Deserialize;
 use warp::{filters::BoxedFilter, Filter, Reply};
 
 pub use error::{Error, ErrorCodeT, ReservedErrorCode};
@@ -101,6 +105,14 @@ pub enum CorsOrigin {
     Any,
     /// Only the specified origin is allowed.
     Specified(String),
+}
+
+/// Specifies connection limit for a method.
+#[derive(Clone, DataSize, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigLimit {
+    pub burst: u32,
+    pub period: u64,
 }
 
 /// Constructs a set of warp filters suitable for use in a JSON-RPC server.
@@ -124,6 +136,7 @@ pub fn route<P: AsRef<str>>(
     max_body_bytes: u64,
     handlers: RequestHandlers,
     allow_unknown_fields: bool,
+    limits: HashMap<String, ConfigLimit>,
 ) -> BoxedFilter<(impl Reply,)> {
     filters::base_filter(path, max_body_bytes)
         .and(filters::main_filter(handlers, allow_unknown_fields))
@@ -158,6 +171,7 @@ pub fn route_with_cors<P: AsRef<str>>(
     max_body_bytes: u64,
     handlers: RequestHandlers,
     allow_unknown_fields: bool,
+    limits: HashMap<String, ConfigLimit>,
     cors_header: &CorsOrigin,
 ) -> BoxedFilter<(impl Reply,)> {
     filters::base_filter(path, max_body_bytes)

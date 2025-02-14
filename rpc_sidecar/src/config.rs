@@ -1,5 +1,9 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr},
+};
 
+use casper_json_rpc::ConfigLimit;
 use datasize::DataSize;
 use serde::Deserialize;
 use thiserror::Error;
@@ -17,7 +21,7 @@ const DEFAULT_QPS_LIMIT: u32 = 100;
 /// JSON-RPC request, which would be an "account_put_deploy".
 const DEFAULT_MAX_BODY_BYTES: u64 = 2_621_440;
 /// Default CORS origin.
-const DEFAULT_CORS_ORIGIN: &str = "";
+const DEFAULT_CORS_ORIGIN: String = String::new();
 
 #[derive(Error, Debug)]
 pub enum FieldParseError {
@@ -28,7 +32,7 @@ pub enum FieldParseError {
     },
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize)]
 // Disallow unknown fields to ensure config files and command-line overrides contain valid keys.
 #[serde(deny_unknown_fields)]
 #[cfg_attr(any(feature = "testing", test), derive(Default))]
@@ -39,7 +43,7 @@ pub struct RpcServerConfig {
 }
 
 /// JSON-RPC HTTP server configuration.
-#[derive(Clone, DataSize, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, DataSize, Debug, Deserialize)]
 // Disallow unknown fields to ensure config files and command-line overrides contain valid keys.
 #[serde(deny_unknown_fields)]
 pub struct RpcConfig {
@@ -55,6 +59,8 @@ pub struct RpcConfig {
     pub max_body_bytes: u64,
     /// CORS origin.
     pub cors_origin: String,
+    /// Limits; key is RPC method name.
+    pub limits: HashMap<String, ConfigLimit>,
 }
 
 impl RpcConfig {
@@ -67,7 +73,8 @@ impl RpcConfig {
             port: DEFAULT_PORT,
             qps_limit: DEFAULT_QPS_LIMIT,
             max_body_bytes: DEFAULT_MAX_BODY_BYTES,
-            cors_origin: DEFAULT_CORS_ORIGIN.to_string(),
+            cors_origin: DEFAULT_CORS_ORIGIN,
+            limits: HashMap::new(),
         }
     }
 }
@@ -100,7 +107,7 @@ const DEFAULT_KEEPALIVE_TIMEOUT_MS: u64 = 1_000;
 const DEFAULT_EXPONENTIAL_BACKOFF_MAX_ATTEMPTS: u32 = 3;
 
 /// Node client configuration.
-#[derive(Clone, DataSize, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, DataSize, Debug, Deserialize)]
 // Disallow unknown fields to ensure config files and command-line overrides contain valid keys.
 #[serde(deny_unknown_fields)]
 pub struct NodeClientConfig {
@@ -192,7 +199,7 @@ impl Default for NodeClientConfig {
 }
 
 /// Exponential backoff configuration for re-connects.
-#[derive(Clone, DataSize, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, DataSize, Debug, Deserialize)]
 // Disallow unknown fields to ensure config files and command-line overrides contain valid keys.
 #[serde(deny_unknown_fields)]
 pub struct ExponentialBackoffConfig {

@@ -9,7 +9,7 @@ mod tests;
 use std::convert::Infallible;
 
 use bytes::Bytes;
-use http::{header::CONTENT_TYPE, HeaderMap, HeaderValue, StatusCode};
+use http::{header::CONTENT_TYPE, HeaderMap, StatusCode};
 use serde_json::{json, Map, Value};
 use tracing::{debug, trace, warn};
 use warp::{
@@ -28,7 +28,7 @@ use crate::{
     response::Response,
 };
 
-const CONTENT_TYPE_VALUE: HeaderValue = HeaderValue::from_static("application/json");
+const CONTENT_TYPE_VALUE: &[u8] = b"application/json";
 
 /// Returns a boxed warp filter which handles the initial setup.
 ///
@@ -45,14 +45,15 @@ pub fn base_filter<P: AsRef<str>>(path: P, max_body_bytes: u64) -> BoxedFilter<(
         .and(
             warp::filters::header::headers_cloned().and_then(|headers: HeaderMap| async move {
                 if let Some(value) = headers.get(CONTENT_TYPE) {
-                    if value == CONTENT_TYPE_VALUE {
-                        return Ok(());
+                    if value.as_bytes().to_ascii_lowercase() != CONTENT_TYPE_VALUE {
+                        trace!(content_type = ?value.to_str(), "invalid {CONTENT_TYPE}");
+                        return Err(reject::custom(UnsupportedMediaType));
                     }
-                    trace!(content_type = ?value.to_str(), "invalid {CONTENT_TYPE}");
-                    return Err(reject::custom(UnsupportedMediaType));
+                    Ok(())
+                } else {
+                    trace!("missing {CONTENT_TYPE}");
+                    Err(reject::custom(MissingContentTypeHeader))
                 }
-                trace!("missing {CONTENT_TYPE}");
-                Err(reject::custom(MissingContentTypeHeader))
             }),
         )
         .untuple_one()

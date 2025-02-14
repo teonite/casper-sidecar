@@ -1,6 +1,6 @@
-use std::{num::NonZeroU32, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use casper_json_rpc::{CorsOrigin, RequestHandlersBuilder};
+use casper_json_rpc::{ConfigLimit, CorsOrigin, RequestHandlersBuilder};
 use hyper::server::{conn::AddrIncoming, Builder};
 
 use super::rpcs::{
@@ -33,7 +33,7 @@ const RPC_API_SERVER_NAME: &str = "JSON RPC";
 pub async fn run(
     node: Arc<dyn NodeClient>,
     builder: Builder<AddrIncoming>,
-    qps_limit: NonZeroU32,
+    limits: HashMap<String, ConfigLimit>,
     max_body_bytes: u64,
     cors_origin: String,
 ) {
@@ -72,7 +72,7 @@ pub async fn run(
             super::rpcs::run(
                 builder,
                 handlers,
-                qps_limit,
+                limits,
                 max_body_bytes,
                 RPC_API_PATH,
                 RPC_API_SERVER_NAME,
@@ -83,7 +83,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
-                qps_limit,
+                limits,
                 max_body_bytes,
                 RPC_API_PATH,
                 RPC_API_SERVER_NAME,
@@ -95,7 +95,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
-                qps_limit,
+                limits,
                 max_body_bytes,
                 RPC_API_PATH,
                 RPC_API_SERVER_NAME,

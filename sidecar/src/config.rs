@@ -7,7 +7,7 @@ use casper_rpc_sidecar::{FieldParseError, RpcServerConfig};
 use serde::Deserialize;
 use thiserror::Error;
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct SidecarConfigTarget {
     max_thread_count: Option<usize>,
     max_blocking_thread_count: Option<usize>,
@@ -19,7 +19,7 @@ pub struct SidecarConfigTarget {
     rpc_server: Option<RpcServerConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize)]
 #[cfg_attr(test, derive(Default))]
 pub struct SidecarConfig {
     pub max_thread_count: Option<usize>,
@@ -66,15 +66,21 @@ impl SidecarConfig {
     }
 
     fn is_rpc_server_enabled(&self) -> bool {
-        self.rpc_server.is_some() && self.rpc_server.as_ref().unwrap().main_server.enable_server
+        self.rpc_server
+            .as_ref()
+            .is_some_and(|config| config.main_server.enable_server)
     }
 
     fn is_sse_server_enabled(&self) -> bool {
-        self.sse_server.is_some() && self.sse_server.as_ref().unwrap().enable_server
+        self.sse_server
+            .as_ref()
+            .is_some_and(|config| config.enable_server)
     }
 
     fn is_sse_storing_events(&self) -> bool {
-        self.is_sse_server_enabled() && !self.sse_server.as_ref().unwrap().disable_event_persistence
+        self.sse_server
+            .as_ref()
+            .is_some_and(|config| config.enable_server && !config.disable_event_persistence)
     }
 
     fn is_postgres_enabled(&self) -> bool {
@@ -90,7 +96,9 @@ impl SidecarConfig {
     }
 
     fn is_rest_api_server_enabled(&self) -> bool {
-        self.rest_api_server.is_some() && self.rest_api_server.as_ref().unwrap().enable_server
+        self.rest_api_server
+            .as_ref()
+            .is_some_and(|config| config.enable_server)
     }
 }
 

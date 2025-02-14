@@ -301,7 +301,7 @@ async fn should_handle_invalid_json() {
     // This should get handled by `filters::handle_body` and return Response::Failure (parse error)
     // to the client as it cannot be parsed as JSON.
     let http_response = warp::test::request()
-        .body(r#"a"#)
+        .body("a")
         .filter(&filter)
         .await
         .unwrap()

@@ -1,5 +1,9 @@
-use std::net::{IpAddr, Ipv4Addr};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr},
+};
 
+use casper_json_rpc::ConfigLimit;
 use datasize::DataSize;
 use serde::Deserialize;
 
@@ -13,10 +17,10 @@ const DEFAULT_QPS_LIMIT: u32 = 1;
 /// Default max body bytes (2.5MB).
 const DEFAULT_MAX_BODY_BYTES: u64 = 2_621_440;
 /// Default CORS origin.
-const DEFAULT_CORS_ORIGIN: &str = "";
+const DEFAULT_CORS_ORIGIN: String = String::new();
 
 /// JSON-RPC HTTP server configuration.
-#[derive(Clone, DataSize, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, DataSize, Debug, Deserialize)]
 // Disallow unknown fields to ensure config files and command-line overrides contain valid keys.
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -32,6 +36,8 @@ pub struct Config {
     pub max_body_bytes: u64,
     /// CORS origin.
     pub cors_origin: String,
+    /// Limits; key is RPC method name.
+    pub limits: HashMap<String, ConfigLimit>,
 }
 
 impl Config {
@@ -44,7 +50,8 @@ impl Config {
             port: DEFAULT_PORT,
             qps_limit: DEFAULT_QPS_LIMIT,
             max_body_bytes: DEFAULT_MAX_BODY_BYTES,
-            cors_origin: DEFAULT_CORS_ORIGIN.to_string(),
+            cors_origin: DEFAULT_CORS_ORIGIN,
+            limits: HashMap::new(),
         }
     }
 }

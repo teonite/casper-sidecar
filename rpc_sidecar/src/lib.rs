@@ -7,7 +7,7 @@ mod speculative_exec_server;
 #[cfg(any(feature = "testing", test))]
 pub mod testing;
 
-use std::{net::SocketAddr, num::NonZeroU32, process::ExitCode, sync::Arc};
+use std::{net::SocketAddr, process::ExitCode, sync::Arc};
 
 use anyhow::Error;
 use casper_binary_port::{Command, CommandHeader};
@@ -70,7 +70,7 @@ pub async fn build_rpc_server<'a>(
     let reconnect_loop = reconnect_loop
         .map(|q| {
             if let Err(e) = q {
-                error!("reconect_loop finished with error: {}", e);
+                error!("reconect_loop finished with error: {e}");
             }
             Ok(ExitCode::from(CLIENT_SHUTDOWN_EXIT_CODE))
         })
@@ -79,7 +79,7 @@ pub async fn build_rpc_server<'a>(
     let keepalive_loop = keepalive_loop
         .map(|q| {
             if let Err(e) = q {
-                error!("keepalive_loop finished with error: {}", e);
+                error!("keepalive_loop finished with error: {e}");
             }
             Ok(ExitCode::from(CLIENT_SHUTDOWN_EXIT_CODE))
         })
@@ -98,9 +98,9 @@ async fn run_rpc(config: RpcConfig, node_client: Arc<dyn NodeClient>) -> Result<
     run_rpc_server(
         node_client,
         start_listening(&SocketAddr::new(config.ip_address, config.port))?,
-        NonZeroU32::new(config.qps_limit).unwrap(),
+        config.limits,
         config.max_body_bytes,
-        config.cors_origin.clone(),
+        config.cors_origin,
     )
     .await;
     Ok(())
@@ -113,9 +113,9 @@ async fn run_speculative_exec(
     run_speculative_exec_server(
         node_client,
         start_listening(&SocketAddr::new(config.ip_address, config.port))?,
-        NonZeroU32::new(config.qps_limit).unwrap(),
+        config.limits,
         config.max_body_bytes,
-        config.cors_origin.clone(),
+        config.cors_origin,
     )
     .await;
     Ok(())

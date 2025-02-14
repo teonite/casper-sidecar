@@ -17,7 +17,7 @@ fn base_filter_with_recovery() -> BoxedFilter<(impl Reply,)> {
 
 fn valid_base_filter_request_builder() -> RequestBuilder {
     warp::test::request()
-        .path(&format!("/{}", PATH))
+        .path(&format!("/{PATH}"))
         .header("content-type", CONTENT_TYPE_VALUE)
         .method("POST")
         .body([0_u8; MAX_BODY_BYTES as usize])
@@ -106,7 +106,7 @@ async fn should_reject_missing_content_type_header() {
     let filter = base_filter_with_recovery();
 
     let response = warp::test::request()
-        .path(&format!("/{}", PATH))
+        .path(&format!("/{PATH}"))
         .method("POST")
         .body("")
         .filter(&filter)

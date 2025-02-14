@@ -62,11 +62,11 @@ impl SseConnection {
             .send()
             .await
             .map_err(|err| recoverable_error(Error::new(err)))?;
-        let stream = self.build_byte_stream(sse_response).await;
+        let stream = self.build_byte_stream(sse_response);
         Ok(Box::pin(stream.eventsource()))
     }
 
-    async fn build_byte_stream(
+    fn build_byte_stream(
         &mut self,
         sse_response: reqwest::Response,
     ) -> impl Stream<Item = Result<Bytes, SseDataStreamingError>> {

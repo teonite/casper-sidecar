@@ -58,7 +58,7 @@ tracing-subscriber = { workspace = true, features = [
     "fmt",
     "json",
 ] }
-warp = { version = "0.3.7", features = ["compression"] }
+warp = { workspace = true, features = ["compression"] }
 
 [dev-dependencies]
 assert-json-diff = "2"

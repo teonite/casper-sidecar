@@ -36,21 +36,19 @@ impl RequestHandlers {
     pub(crate) async fn handle_request(&self, request: Request, request_size: usize) -> Response {
         let start = Instant::now();
         let request_method = request.method.as_str();
-        let handler = match self.0.get(request_method) {
-            Some(handler) => Arc::clone(handler),
-            None => {
-                let elapsed = start.elapsed();
-                observe_response_time("unknown-handler", "unknown-handler", elapsed);
-                debug!(requested_method = %request_method, "failed to get handler");
-                let error = Error::new(
-                    ReservedErrorCode::MethodNotFound,
-                    format!("'{request_method}' is not a supported json-rpc method on this server"),
-                );
-                return Response::new_failure(request.id, error);
-            }
+        let Some(handler) = self.0.get(request_method) else {
+            let elapsed = start.elapsed();
+            observe_response_time("unknown-handler", "unknown-handler", elapsed);
+            debug!(requested_method = %request_method, "failed to get handler");
+            let error = Error::new(
+                ReservedErrorCode::MethodNotFound,
+                format!("'{request_method}' is not a supported json-rpc method on this server"),
+            );
+            return Response::new_failure(request.id, error);
         };
+        // Update metrics.
         inc_method_call(request_method);
-        register_request_size(request_method, request_size as f64);
+        register_request_size(request_method, request_size);
 
         let elapsed = start.elapsed();
         match handler(request.params).await {
@@ -100,7 +98,7 @@ impl RequestHandlersBuilder {
         let wrapped_handler = move |maybe_params| {
             let handler = Arc::clone(&handler);
             async move {
-                let success = Arc::clone(&handler)(maybe_params).await?;
+                let success = handler(maybe_params).await?;
                 serde_json::to_value(success).map_err(|error| {
                     error!(%error, "failed to encode json-rpc response value");
                     Error::new(

@@ -1,6 +1,7 @@
 //! The set of JSON-RPCs which the API server handles.
 
 use std::{
+    collections::HashMap,
     convert::{Infallible, TryFrom},
     fmt,
     net::{IpAddr, SocketAddr},
@@ -55,7 +56,7 @@ use warp::{
 };
 
 use casper_json_rpc::{
-    CorsOrigin, Error as RpcError, Params, RequestHandlers, RequestHandlersBuilder,
+    ConfigLimit, CorsOrigin, Error as RpcError, Params, RequestHandlers, RequestHandlersBuilder,
     ReservedErrorCode,
 };
 use casper_types::SemVer;
@@ -321,13 +322,14 @@ async fn handle_rejection(error: Rejection) -> Result<impl Reply, Rejection> {
 async fn run_service(
     builder: Builder<AddrIncoming>,
     service_routes: BoxedFilter<(impl Reply + 'static,)>,
-    qps_limit: NonZeroU32,
     server_name: &'static str,
 ) {
     // TODO: make period configurable, but then rename `qps_limit`.
     let period = Duration::from_secs(1);
     let limiter = Arc::new(AddrRateLimiter::keyed(
-        Quota::with_period(period).unwrap().allow_burst(qps_limit),
+        Quota::with_period(period)
+            .unwrap()
+            .allow_burst(NonZeroU32::new(10).unwrap()),
     ));
 
     let make_svc = make_service_fn(move |socket: &AddrStream| {
@@ -389,7 +391,7 @@ async fn run_service(
 pub(super) async fn run_with_cors(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
-    qps_limit: NonZeroU32,
+    limits: HashMap<String, ConfigLimit>,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -400,16 +402,17 @@ pub(super) async fn run_with_cors(
         max_body_bytes,
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
+        limits,
         &cors_header,
     );
-    run_service(builder, service_routes, qps_limit, server_name).await;
+    run_service(builder, service_routes, server_name).await;
 }
 
 /// Start JSON RPC server in a background.
 pub(super) async fn run(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
-    qps_limit: NonZeroU32,
+    limits: HashMap<String, ConfigLimit>,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -419,8 +422,9 @@ pub(super) async fn run(
         max_body_bytes,
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
+        limits,
     );
-    run_service(builder, service_routes, qps_limit, server_name).await;
+    run_service(builder, service_routes, server_name).await;
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]

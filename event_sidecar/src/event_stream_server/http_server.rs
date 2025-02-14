@@ -81,7 +81,7 @@ fn build_buffer(
     ])
 }
 
-async fn send_api_version_from_global_state(
+fn send_api_version_from_global_state(
     protocol_version: ProtocolVersion,
     subscriber: &NewSubscriberInfo,
 ) -> Result<(), SendError<ServerSentEvent>> {
@@ -211,7 +211,7 @@ async fn send_api_version_if_necessary(
         match latest_protocol_version {
             None => {}
             Some(v) => {
-                let _ = send_api_version_from_global_state(v, &subscriber).await;
+                let _ = send_api_version_from_global_state(v, &subscriber);
             }
         }
     }
