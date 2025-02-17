@@ -1,14 +1,9 @@
 //! The set of JSON-RPCs which the API server handles.
 
 use std::{
-    collections::HashMap,
     convert::{Infallible, TryFrom},
-    fmt,
-    net::{IpAddr, SocketAddr},
-    num::NonZeroU32,
-    str,
+    fmt, str,
     sync::Arc,
-    time::Duration,
 };
 
 pub mod account;
@@ -27,14 +22,7 @@ pub(crate) mod test_utils;
 mod types;
 
 use async_trait::async_trait;
-use governor::{
-    clock::{Clock, DefaultClock},
-    DefaultKeyedRateLimiter, Quota,
-};
-use http::{
-    header::{ACCEPT_ENCODING, FORWARDED, RETRY_AFTER},
-    StatusCode,
-};
+use http::header::ACCEPT_ENCODING;
 use hyper::{
     server::{
         conn::{AddrIncoming, AddrStream},
@@ -44,19 +32,14 @@ use hyper::{
 };
 use schemars::JsonSchema;
 use serde::{de::Error as SerdeError, Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::{json, Value};
+use serde_json::Value;
 use tokio::sync::oneshot;
 use tower::ServiceBuilder;
 use tracing::info;
-use warp::{
-    filters::BoxedFilter,
-    reject::{Reject, Rejection},
-    reply::{self, Reply},
-    Filter,
-};
+use warp::{filters::BoxedFilter, reply::Reply, Filter};
 
 use casper_json_rpc::{
-    ConfigLimit, CorsOrigin, Error as RpcError, Params, RequestHandlers, RequestHandlersBuilder,
+    CorsOrigin, Error as RpcError, LimiterMap, Params, RequestHandlers, RequestHandlersBuilder,
     ReservedErrorCode,
 };
 use casper_types::SemVer;
@@ -75,8 +58,6 @@ pub const CURRENT_API_VERSION: ApiVersion = ApiVersion(SemVer::new(2, 0, 0));
 ///
 /// It will be changed to `false` for casper-node v2.0.0.
 const ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST: bool = true;
-
-type AddrRateLimiter = DefaultKeyedRateLimiter<IpAddr>;
 
 /// A JSON-RPC requiring the "params" field to be present.
 #[async_trait]
@@ -133,7 +114,7 @@ pub(super) trait RpcWithParams {
                 Self::do_handle_request(node_client, params).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, Arc::new(handler));
+        handlers_builder.register_handler(Self::METHOD, handler);
     }
 
     /// Tries to parse the params, and on success, returns the doc example, regardless of the value
@@ -144,7 +125,7 @@ pub(super) trait RpcWithParams {
             let _params = Self::try_parse_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, Arc::new(handler));
+        handlers_builder.register_handler(Self::METHOD, handler);
     }
 
     async fn do_handle_request(
@@ -193,7 +174,7 @@ pub(super) trait RpcWithoutParams {
                 Self::do_handle_request(node_client).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, Arc::new(handler));
+        handlers_builder.register_handler(Self::METHOD, handler);
     }
 
     /// Checks the params, and on success, returns the doc example.
@@ -203,7 +184,7 @@ pub(super) trait RpcWithoutParams {
             Self::check_no_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, Arc::new(handler));
+        handlers_builder.register_handler(Self::METHOD, handler);
     }
 
     async fn do_handle_request(
@@ -274,7 +255,7 @@ pub(super) trait RpcWithOptionalParams {
                 Self::do_handle_request(node_client, params).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, Arc::new(handler));
+        handlers_builder.register_handler(Self::METHOD, handler);
     }
 
     /// Tries to parse the params, and on success, returns the doc example, regardless of the value
@@ -285,7 +266,7 @@ pub(super) trait RpcWithOptionalParams {
             let _params = Self::try_parse_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, Arc::new(handler));
+        handlers_builder.register_handler(Self::METHOD, handler);
     }
 
     async fn do_handle_request(
@@ -294,29 +275,29 @@ pub(super) trait RpcWithOptionalParams {
     ) -> Result<Self::ResponseResult, RpcError>;
 }
 
-const X_FORWARDED_FOR: &str = "x-forwarded-for";
-const X_REAL_IP: &str = "x-real-ip";
+// const X_FORWARDED_FOR: &str = "x-forwarded-for";
+// const X_REAL_IP: &str = "x-real-ip";
 
-#[derive(Debug)]
-struct TooManyRequests(Duration);
+// #[derive(Debug)]
+// struct TooManyRequests(Duration);
 
-impl Reject for TooManyRequests {}
+// impl Reject for TooManyRequests {}
 
-async fn handle_rejection(error: Rejection) -> Result<impl Reply, Rejection> {
-    if let Some(rejection) = error.find::<TooManyRequests>() {
-        let response = reply::with_status(
-            reply::json(&json!({ "message": "Too many requests" })),
-            StatusCode::TOO_MANY_REQUESTS,
-        );
-        Ok(reply::with_header(
-            response,
-            RETRY_AFTER,
-            rejection.0.as_secs().to_string(),
-        ))
-    } else {
-        Err(error)
-    }
-}
+// async fn handle_rejection(error: Rejection) -> Result<impl Reply, Rejection> {
+//     if let Some(rejection) = error.find::<TooManyRequests>() {
+//         let response = reply::with_status(
+//             reply::json(&json!({ "message": "Too many requests" })),
+//             StatusCode::TOO_MANY_REQUESTS,
+//         );
+//         Ok(reply::with_header(
+//             response,
+//             RETRY_AFTER,
+//             rejection.0.as_secs().to_string(),
+//         ))
+//     } else {
+//         Err(error)
+//     }
+// }
 
 /// The actual service runner, common to `run()` and `run_with_cors()`.
 async fn run_service(
@@ -325,38 +306,38 @@ async fn run_service(
     server_name: &'static str,
 ) {
     // TODO: make period configurable, but then rename `qps_limit`.
-    let period = Duration::from_secs(1);
-    let limiter = Arc::new(AddrRateLimiter::keyed(
-        Quota::with_period(period)
-            .unwrap()
-            .allow_burst(NonZeroU32::new(10).unwrap()),
-    ));
+    // let period = Duration::from_secs(1);
+    // let limiter = Arc::new(AddrRateLimiter::keyed(
+    //     Quota::with_period(period)
+    //         .unwrap()
+    //         .allow_burst(NonZeroU32::new(10).unwrap()),
+    // ));
 
-    let make_svc = make_service_fn(move |socket: &AddrStream| {
-        let remote_addr = socket.remote_addr();
-        let limiter = limiter.clone();
+    let make_svc = make_service_fn(move |_socket: &AddrStream| {
+        // let remote_addr = socket.remote_addr();
+        // let limiter = limiter.clone();
 
         // Try to get client's IP address from headers, with fallback to connection IP address.
-        let host_ip = warp::header(X_REAL_IP)
-            .or(warp::header(X_FORWARDED_FOR))
-            .unify()
-            .or(warp::header(FORWARDED.as_str()))
-            .unify()
-            .or(warp::addr::remote()
-                .map(move |remote: Option<SocketAddr>| remote.unwrap_or(remote_addr).ip()))
-            .unify()
-            .and_then(move |ip_addr: IpAddr| {
-                let limiter = limiter.clone();
-                async move {
-                    if let Err(negative) = limiter.check_key(&ip_addr) {
-                        let wait_time = negative.wait_time_from(DefaultClock::default().now());
-                        Err(warp::reject::custom(TooManyRequests(wait_time)))
-                    } else {
-                        Ok(())
-                    }
-                }
-            })
-            .untuple_one();
+        // let host_ip = warp::header(X_REAL_IP)
+        //     .or(warp::header(X_FORWARDED_FOR))
+        //     .unify()
+        //     .or(warp::header(FORWARDED.as_str()))
+        //     .unify()
+        //     .or(warp::addr::remote()
+        //         .map(move |remote: Option<SocketAddr>| remote.unwrap_or(remote_addr).ip()))
+        //     .unify()
+        //     .and_then(move |ip_addr: IpAddr| {
+        //         let limiter = limiter.clone();
+        //         async move {
+        //             if let Err(negative) = limiter.check_key(&ip_addr) {
+        //                 let wait_time = negative.wait_time_from(DefaultClock::default().now());
+        //                 Err(warp::reject::custom(TooManyRequests(wait_time)))
+        //             } else {
+        //                 Ok(())
+        //             }
+        //         }
+        //     })
+        //     .untuple_one();
 
         // Supports content negotiation for gzip responses. This is an interim fix until
         // https://github.com/seanmonstar/warp/pull/513 moves forward.
@@ -364,11 +345,7 @@ async fn run_service(
             .and(service_routes.clone())
             .with(warp::compression::gzip());
 
-        let service = warp::service(
-            host_ip
-                .and(service_routes_gzip.or(service_routes.clone()))
-                .recover(handle_rejection),
-        );
+        let service = warp::service(service_routes_gzip.or(service_routes.clone()));
         async move { Ok::<_, Infallible>(service) }
     });
 
@@ -391,7 +368,7 @@ async fn run_service(
 pub(super) async fn run_with_cors(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
-    limits: HashMap<String, ConfigLimit>,
+    limiters: LimiterMap,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -402,7 +379,7 @@ pub(super) async fn run_with_cors(
         max_body_bytes,
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
-        limits,
+        limiters,
         &cors_header,
     );
     run_service(builder, service_routes, server_name).await;
@@ -412,7 +389,7 @@ pub(super) async fn run_with_cors(
 pub(super) async fn run(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
-    limits: HashMap<String, ConfigLimit>,
+    limiters: LimiterMap,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -422,7 +399,7 @@ pub(super) async fn run(
         max_body_bytes,
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
-        limits,
+        limiters,
     );
     run_service(builder, service_routes, server_name).await;
 }

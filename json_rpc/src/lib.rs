@@ -85,9 +85,10 @@ mod request;
 mod request_handlers;
 mod response;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash, num::NonZeroU32, time::Duration};
 
 use datasize::DataSize;
+use governor::{DefaultDirectRateLimiter, Quota};
 use http::{header::CONTENT_TYPE, Method};
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, Filter, Reply};
@@ -107,13 +108,27 @@ pub enum CorsOrigin {
     Specified(String),
 }
 
-/// Specifies connection limit for a method.
+/// Specifies connection rate limiter parameters for a method (HTTP path).
 #[derive(Clone, DataSize, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfigLimit {
+    /// Maximum number of connections that the rate limiter will allow.
     pub burst: u32,
+    /// Rate limiter's time period.
     pub period: u64,
 }
+
+impl ConfigLimit {
+    #[must_use]
+    pub fn quota(&self) -> Quota {
+        let max_burst = NonZeroU32::new(self.burst).unwrap();
+        Quota::with_period(Duration::from_secs(self.period))
+            .unwrap()
+            .allow_burst(max_burst)
+    }
+}
+
+pub type LimiterMap = HashMap<&'static str, DefaultDirectRateLimiter>;
 
 /// Constructs a set of warp filters suitable for use in a JSON-RPC server.
 ///
@@ -131,14 +146,14 @@ pub struct ConfigLimit {
 /// respond with an error.
 ///
 /// For further details, see the docs for the [`filters`] functions.
-pub fn route<P: AsRef<str>>(
+pub fn route<P: AsRef<str> + Eq + Hash + Send + Sync + 'static>(
     path: P,
     max_body_bytes: u64,
     handlers: RequestHandlers,
     allow_unknown_fields: bool,
-    limits: HashMap<String, ConfigLimit>,
+    limiters: LimiterMap,
 ) -> BoxedFilter<(impl Reply,)> {
-    filters::base_filter(path, max_body_bytes)
+    filters::base_filter(path, max_body_bytes, limiters)
         .and(filters::main_filter(handlers, allow_unknown_fields))
         .recover(filters::handle_rejection)
         .boxed()
@@ -166,15 +181,15 @@ pub fn route<P: AsRef<str>>(
 ///   * allows the method "POST"
 ///
 /// For further details, see the docs for the [`filters`] functions.
-pub fn route_with_cors<P: AsRef<str>>(
+pub fn route_with_cors<P: AsRef<str> + Eq + Hash + Send + Sync + 'static>(
     path: P,
     max_body_bytes: u64,
     handlers: RequestHandlers,
     allow_unknown_fields: bool,
-    limits: HashMap<String, ConfigLimit>,
+    limiters: LimiterMap,
     cors_header: &CorsOrigin,
 ) -> BoxedFilter<(impl Reply,)> {
-    filters::base_filter(path, max_body_bytes)
+    filters::base_filter(path, max_body_bytes, limiters)
         .and(filters::main_filter(handlers, allow_unknown_fields))
         .recover(filters::handle_rejection)
         .with(match cors_header {

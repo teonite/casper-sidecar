@@ -86,7 +86,7 @@ impl RequestHandlersBuilder {
     /// async fn handle_it(params: Option<Params>) -> Result<T, Error>
     /// ```
     /// where `T` implements `Serialize` and will be used as the JSON-RPC response's "result" field.
-    pub fn register_handler<Func, Fut, T>(&mut self, method: &'static str, handler: Arc<Func>)
+    pub fn register_handler<Func, Fut, T>(&mut self, method: &'static str, handler: Func)
     where
         Func: Fn(Option<Params>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<T, Error>> + Send,
@@ -95,6 +95,7 @@ impl RequestHandlersBuilder {
         // The provided handler returns a future with output of `Result<T, Error>`. We need to
         // convert that to a boxed future with output `Result<Value, Error>` to store it in a
         // homogenous collection.
+        let handler = Arc::new(handler);
         let wrapped_handler = move |maybe_params| {
             let handler = Arc::clone(&handler);
             async move {

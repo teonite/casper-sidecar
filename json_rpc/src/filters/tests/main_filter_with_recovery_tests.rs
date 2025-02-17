@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use http::StatusCode;
 use serde::{
     ser::{Error as _, Serializer},
@@ -51,8 +49,8 @@ async fn from_http_response(response: http::Response<hyper::Body>) -> Response {
 
 fn main_filter_with_recovery() -> BoxedFilter<(impl Reply,)> {
     let mut handlers = RequestHandlersBuilder::new();
-    handlers.register_handler(GET_GOOD_THING, Arc::new(get_good_thing));
-    handlers.register_handler(GET_BAD_THING, Arc::new(get_bad_thing));
+    handlers.register_handler(GET_GOOD_THING, get_good_thing);
+    handlers.register_handler(GET_BAD_THING, get_bad_thing);
     let handlers = handlers.build();
 
     main_filter(handlers, false)

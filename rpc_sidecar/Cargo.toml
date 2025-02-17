@@ -12,11 +12,11 @@ license = "Apache-2.0"
 
 [dependencies]
 anyhow = { workspace = true }
-async-trait = "0.1.86"
-backtrace = "0.3.74"
-base16 = "0.2.1"
+async-trait = "0.1"
+backtrace = "0.3"
+base16 = "0.2"
 bincode = "1"
-bytes = "1.10.0"
+bytes = "1.10"
 casper-json-rpc = { version = "1.0.0", path = "../json_rpc" }
 casper-types = { workspace = true, features = [
     "datasize",
@@ -27,31 +27,31 @@ casper-types = { workspace = true, features = [
 casper-binary-port.workspace = true
 datasize = { workspace = true, features = ["detailed", "fake_clock-types"] }
 derive-new = { workspace = true }
-forwarded-header-value = "0.1.1"
+forwarded-header-value = "0.1"
 futures = { workspace = true }
-governor = "0.8.0"
-http = "0.2.12"
-hyper = "0.14.32"
+governor = "0.8"
+http = "0.2"
+hyper = "0.14"
 juliet = { version = "0.3", features = ["tracing"] }
 metrics = { workspace = true }
 num_cpus = "1"
-num-traits = { version = "0.2.19", default-features = false }
+num-traits = { version = "0.2", default-features = false }
 once_cell.workspace = true
 pin-project = "1"
-portpicker = "0.1.1"
-rand = "0.8.5"
-schemars = { version = "0.8.21", features = [
+portpicker = "0.1"
+rand = "0.8"
+schemars = { version = "0.8", features = [
     "preserve_order",
     "impl_json_schema",
 ] }
 serde = { workspace = true, default-features = true, features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-serde-map-to-array = "1.1.0"
+serde-map-to-array = "1.1"
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tokio-util = { version = "0.6.10", features = ["codec"] }
+tokio-util = { version = "0.6", features = ["codec"] }
 toml = { workspace = true }
-tower = { version = "0.5.2", features = ["limit", "util"] }
+tower = { version = "0.5", features = ["limit", "util"] }
 tracing = { workspace = true, default-features = true }
 tracing-subscriber = { workspace = true, features = [
     "env-filter",
@@ -77,7 +77,7 @@ tokio = { workspace = true, features = ["test-util"] }
 jsonschema = { workspace = true }
 
 [build-dependencies]
-vergen = { version = "8.3.2", default-features = false, features = [
+vergen = { version = "8.3", default-features = false, features = [
     "git",
     "gitoxide",
 ] }

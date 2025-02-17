@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use casper_json_rpc::{ConfigLimit, CorsOrigin, RequestHandlersBuilder};
+use governor::DefaultDirectRateLimiter;
 use hyper::server::{conn::AddrIncoming, Builder};
 
 use super::rpcs::{
@@ -38,33 +39,46 @@ pub async fn run(
     cors_origin: String,
 ) {
     let mut handlers = RequestHandlersBuilder::new();
-    PutDeploy::register_as_handler(node.clone(), &mut handlers);
-    PutTransaction::register_as_handler(node.clone(), &mut handlers);
-    GetBlock::register_as_handler(node.clone(), &mut handlers);
-    GetBlockTransfers::register_as_handler(node.clone(), &mut handlers);
-    GetStateRootHash::register_as_handler(node.clone(), &mut handlers);
-    GetItem::register_as_handler(node.clone(), &mut handlers);
-    QueryGlobalState::register_as_handler(node.clone(), &mut handlers);
-    GetBalance::register_as_handler(node.clone(), &mut handlers);
-    GetAccountInfo::register_as_handler(node.clone(), &mut handlers);
-    GetAddressableEntity::register_as_handler(node.clone(), &mut handlers);
-    GetPackage::register_as_handler(node.clone(), &mut handlers);
-    GetDeploy::register_as_handler(node.clone(), &mut handlers);
-    GetTransaction::register_as_handler(node.clone(), &mut handlers);
-    GetPeers::register_as_handler(node.clone(), &mut handlers);
-    GetStatus::register_as_handler(node.clone(), &mut handlers);
-    GetReward::register_as_handler(node.clone(), &mut handlers);
-    GetEraInfoBySwitchBlock::register_as_handler(node.clone(), &mut handlers);
-    GetEraSummary::register_as_handler(node.clone(), &mut handlers);
-    GetAuctionInfo::register_as_handler(node.clone(), &mut handlers);
-    GetAuctionInfoV2::register_as_handler(node.clone(), &mut handlers);
-    GetTrie::register_as_handler(node.clone(), &mut handlers);
-    GetValidatorChanges::register_as_handler(node.clone(), &mut handlers);
-    RpcDiscover::register_as_handler(node.clone(), &mut handlers);
-    GetDictionaryItem::register_as_handler(node.clone(), &mut handlers);
-    GetChainspec::register_as_handler(node.clone(), &mut handlers);
-    QueryBalance::register_as_handler(node.clone(), &mut handlers);
-    QueryBalanceDetails::register_as_handler(node, &mut handlers);
+    let mut limiters = HashMap::new();
+
+    macro_rules! register {
+        ($rpc:ident) => {
+            $rpc::register_as_handler(node.clone(), &mut handlers);
+            if let Some(config_limit) = limits.get($rpc::METHOD) {
+                let limiter = DefaultDirectRateLimiter::direct(config_limit.quota());
+                limiters.insert($rpc::METHOD, limiter);
+            }
+        };
+    }
+
+    register!(PutDeploy);
+    register!(PutTransaction);
+    register!(GetBlock);
+    register!(GetBlockTransfers);
+    register!(GetStateRootHash);
+    register!(GetItem);
+    register!(QueryGlobalState);
+    register!(GetBalance);
+    register!(GetAccountInfo);
+    register!(GetAddressableEntity);
+    register!(GetPackage);
+    register!(GetDeploy);
+    register!(GetTransaction);
+    register!(GetPeers);
+    register!(GetStatus);
+    register!(GetReward);
+    register!(GetEraInfoBySwitchBlock);
+    register!(GetEraSummary);
+    register!(GetAuctionInfo);
+    register!(GetAuctionInfoV2);
+    register!(GetTrie);
+    register!(GetValidatorChanges);
+    register!(RpcDiscover);
+    register!(GetDictionaryItem);
+    register!(GetChainspec);
+    register!(QueryBalance);
+    register!(QueryBalanceDetails);
+
     let handlers = handlers.build();
 
     match cors_origin.as_str() {
@@ -72,7 +86,7 @@ pub async fn run(
             super::rpcs::run(
                 builder,
                 handlers,
-                limits,
+                limiters,
                 max_body_bytes,
                 RPC_API_PATH,
                 RPC_API_SERVER_NAME,
@@ -83,7 +97,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
-                limits,
+                limiters,
                 max_body_bytes,
                 RPC_API_PATH,
                 RPC_API_SERVER_NAME,
@@ -95,7 +109,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
-                limits,
+                limiters,
                 max_body_bytes,
                 RPC_API_PATH,
                 RPC_API_SERVER_NAME,

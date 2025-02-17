@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use http::StatusCode;
 use warp::{filters::BoxedFilter, reply, test::RequestBuilder, Filter, Reply};
 
@@ -8,7 +10,7 @@ const PATH: &str = "rpc";
 const MAX_BODY_BYTES: u64 = 10;
 
 fn base_filter_with_recovery() -> BoxedFilter<(impl Reply,)> {
-    base_filter(PATH, MAX_BODY_BYTES)
+    base_filter(PATH, MAX_BODY_BYTES, HashMap::new())
         .map(reply) // return an empty body on success
         .with(warp::cors().allow_origin("http://a.com"))
         .recover(handle_rejection) // or convert a rejection to JSON-encoded `ResponseBody`
@@ -118,7 +120,7 @@ async fn should_reject_missing_content_type_header() {
     let response_body = ResponseBodyOnRejection::from_response(response).await;
     assert_eq!(
         response_body.message,
-        "The request's content-type is not set"
+        "Missing request header \"content-type\""
     );
 }
 
@@ -134,11 +136,11 @@ async fn should_reject_invalid_content_type() {
             .unwrap()
             .into_response();
 
-        assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let response_body = ResponseBodyOnRejection::from_response(response).await;
         assert_eq!(
             response_body.message,
-            "The request's content-type is not supported"
+            "Invalid request header \"content-type\""
         );
     }
 

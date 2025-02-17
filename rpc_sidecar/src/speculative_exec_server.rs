@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use governor::DefaultDirectRateLimiter;
 use hyper::server::{conn::AddrIncoming, Builder};
 
 use casper_json_rpc::{ConfigLimit, CorsOrigin, RequestHandlersBuilder};
@@ -26,9 +27,22 @@ pub async fn run(
     cors_origin: String,
 ) {
     let mut handlers = RequestHandlersBuilder::new();
-    SpeculativeExecTxn::register_as_handler(node.clone(), &mut handlers);
-    SpeculativeExec::register_as_handler(node.clone(), &mut handlers);
-    SpeculativeRpcDiscover::register_as_handler(node, &mut handlers);
+    let mut limiters = HashMap::new();
+
+    macro_rules! register {
+        ($rpc:ident) => {
+            $rpc::register_as_handler(node.clone(), &mut handlers);
+            if let Some(config_limit) = limits.get($rpc::METHOD) {
+                let limiter = DefaultDirectRateLimiter::direct(config_limit.quota());
+                limiters.insert($rpc::METHOD, limiter);
+            }
+        };
+    }
+
+    register!(SpeculativeExecTxn);
+    register!(SpeculativeExec);
+    register!(SpeculativeRpcDiscover);
+
     let handlers = handlers.build();
 
     match cors_origin.as_str() {
@@ -36,7 +50,7 @@ pub async fn run(
             super::rpcs::run(
                 builder,
                 handlers,
-                limits,
+                limiters,
                 max_body_bytes,
                 SPECULATIVE_EXEC_API_PATH,
                 SPECULATIVE_EXEC_SERVER_NAME,
@@ -47,7 +61,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
-                limits,
+                limiters,
                 max_body_bytes,
                 SPECULATIVE_EXEC_API_PATH,
                 SPECULATIVE_EXEC_SERVER_NAME,
@@ -59,7 +73,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
-                limits,
+                limiters,
                 max_body_bytes,
                 SPECULATIVE_EXEC_API_PATH,
                 SPECULATIVE_EXEC_SERVER_NAME,
