@@ -82,8 +82,8 @@ impl LegacySseData {
             SseData::ApiVersion(protocol_version) => {
                 Some(LegacySseData::ApiVersion(*protocol_version))
             }
-            SseData::SidecarVersion(_) => None,
-            SseData::Shutdown => None,
+            // we don't translate steps
+            SseData::SidecarVersion(_) | SseData::Shutdown | SseData::Step { .. } => None,
             SseData::BlockAdded { block_hash, block } => {
                 build_default_block_added_translator().translate(block_hash, block)
             }
@@ -113,9 +113,12 @@ impl LegacySseData {
                 era_id,
                 public_key,
                 timestamp,
-            } => maybe_translate_fault(era_id, public_key, timestamp),
+            } => Some(LegacySseData::Fault {
+                era_id: *era_id,
+                public_key: public_key.clone(),
+                timestamp: *timestamp,
+            }),
             SseData::FinalitySignature(fs) => Some(translate_finality_signature(fs)),
-            SseData::Step { .. } => None, //we don't translate steps
         }
     }
 }
@@ -129,18 +132,6 @@ fn translate_finality_signature(fs: &FinalitySignature) -> LegacySseData {
             LegacySseData::FinalitySignature(LegacyFinalitySignature::from_v2(v2))
         }
     }
-}
-
-fn maybe_translate_fault(
-    era_id: &EraId,
-    public_key: &PublicKey,
-    timestamp: &Timestamp,
-) -> Option<LegacySseData> {
-    Some(LegacySseData::Fault {
-        era_id: *era_id,
-        public_key: public_key.clone(),
-        timestamp: *timestamp,
-    })
 }
 
 fn maybe_translate_deploy_expired(transaction_hash: &TransactionHash) -> Option<LegacySseData> {

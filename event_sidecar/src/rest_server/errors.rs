@@ -50,7 +50,7 @@ pub(super) async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infal
         code = StatusCode::BAD_REQUEST;
         message = format!("Invalid parameter in query: {err}");
     } else {
-        (code, message) = fallback_status_code_and_message(err);
+        (code, message) = fallback_status_code_and_message(&err);
     }
 
     let json = warp::reply::json(&ApiError {
@@ -61,7 +61,7 @@ pub(super) async fn handle_rejection(err: Rejection) -> Result<impl Reply, Infal
     Ok(warp::reply::with_status(json, code))
 }
 
-fn fallback_status_code_and_message(err: Rejection) -> (StatusCode, String) {
+fn fallback_status_code_and_message(err: &Rejection) -> (StatusCode, String) {
     let err_msg = format!("Unexpected error in REST server - please file a bug report!\n{err:?}");
     error!(%err_msg);
     (StatusCode::INTERNAL_SERVER_ERROR, err_msg)

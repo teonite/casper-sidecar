@@ -281,24 +281,21 @@ fn should_send_shutdown(event: &ServerSentEvent, stream_filter: &Endpoint) -> bo
 }
 
 fn determine_id(event: &ServerSentEvent, data: &SseData) -> Option<String> {
-    match event.id {
-        Some(id) => {
-            if matches!(data, &SseData::ApiVersion { .. }) {
-                error!("ApiVersion should have no event ID");
-                return None;
-            }
-            Some(id.to_string())
+    if let Some(id) = event.id {
+        if matches!(data, &SseData::ApiVersion { .. }) {
+            error!("ApiVersion should have no event ID");
+            return None;
         }
-        None => {
-            if !matches!(
-                data,
-                &SseData::ApiVersion { .. } | &SseData::SidecarVersion { .. }
-            ) {
-                error!("only ApiVersion and SidecarVersion may have no event ID");
-                return None;
-            }
-            Some(String::new())
+        Some(id.to_string())
+    } else {
+        if !matches!(
+            data,
+            &SseData::ApiVersion { .. } | &SseData::SidecarVersion { .. }
+        ) {
+            error!("only ApiVersion and SidecarVersion may have no event ID");
+            return None;
         }
+        Some(String::new())
     }
 }
 

@@ -85,10 +85,10 @@ mod request;
 mod request_handlers;
 mod response;
 
-use std::{collections::HashMap, hash::Hash, num::NonZeroU32, time::Duration};
+use std::{hash::Hash, num::NonZeroU32, time::Duration};
 
 use datasize::DataSize;
-use governor::{DefaultDirectRateLimiter, Quota};
+use governor::Quota;
 use http::{header::CONTENT_TYPE, Method};
 use serde::Deserialize;
 use warp::{filters::BoxedFilter, Filter, Reply};
@@ -119,16 +119,26 @@ pub struct ConfigLimit {
 }
 
 impl ConfigLimit {
+    /// Return connection limit as `Quota`.
     #[must_use]
     pub fn quota(&self) -> Quota {
-        let max_burst = NonZeroU32::new(self.burst).unwrap();
-        Quota::with_period(Duration::from_secs(self.period))
-            .unwrap()
-            .allow_burst(max_burst)
+        let max_burst = NonZeroU32::new(self.burst).unwrap_or(NonZeroU32::MIN);
+        if let Some(quota) = Quota::with_period(Duration::from_secs(self.period)) {
+            quota.allow_burst(max_burst)
+        } else {
+            Quota::per_second(max_burst)
+        }
     }
 }
 
-pub type LimiterMap = HashMap<&'static str, DefaultDirectRateLimiter>;
+impl Default for ConfigLimit {
+    fn default() -> Self {
+        Self {
+            burst: 1,
+            period: 1,
+        }
+    }
+}
 
 /// Constructs a set of warp filters suitable for use in a JSON-RPC server.
 ///
@@ -151,9 +161,8 @@ pub fn route<P: AsRef<str> + Eq + Hash + Send + Sync + 'static>(
     max_body_bytes: u64,
     handlers: RequestHandlers,
     allow_unknown_fields: bool,
-    limiters: LimiterMap,
 ) -> BoxedFilter<(impl Reply,)> {
-    filters::base_filter(path, max_body_bytes, limiters)
+    filters::base_filter(path, max_body_bytes)
         .and(filters::main_filter(handlers, allow_unknown_fields))
         .recover(filters::handle_rejection)
         .boxed()
@@ -186,10 +195,9 @@ pub fn route_with_cors<P: AsRef<str> + Eq + Hash + Send + Sync + 'static>(
     max_body_bytes: u64,
     handlers: RequestHandlers,
     allow_unknown_fields: bool,
-    limiters: LimiterMap,
     cors_header: &CorsOrigin,
 ) -> BoxedFilter<(impl Reply,)> {
-    filters::base_filter(path, max_body_bytes, limiters)
+    filters::base_filter(path, max_body_bytes)
         .and(filters::main_filter(handlers, allow_unknown_fields))
         .recover(filters::handle_rejection)
         .with(match cors_header {

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use http::StatusCode;
 use warp::{filters::BoxedFilter, reply, test::RequestBuilder, Filter, Reply};
 
@@ -10,7 +8,7 @@ const PATH: &str = "rpc";
 const MAX_BODY_BYTES: u64 = 10;
 
 fn base_filter_with_recovery() -> BoxedFilter<(impl Reply,)> {
-    base_filter(PATH, MAX_BODY_BYTES, HashMap::new())
+    base_filter(PATH, MAX_BODY_BYTES)
         .map(reply) // return an empty body on success
         .with(warp::cors().allow_origin("http://a.com"))
         .recover(handle_rejection) // or convert a rejection to JSON-encoded `ResponseBody`

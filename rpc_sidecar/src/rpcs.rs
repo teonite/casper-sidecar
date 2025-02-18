@@ -39,7 +39,7 @@ use tracing::info;
 use warp::{filters::BoxedFilter, reply::Reply, Filter};
 
 use casper_json_rpc::{
-    CorsOrigin, Error as RpcError, LimiterMap, Params, RequestHandlers, RequestHandlersBuilder,
+    ConfigLimit, CorsOrigin, Error as RpcError, Params, RequestHandlers, RequestHandlersBuilder,
     ReservedErrorCode,
 };
 use casper_types::SemVer;
@@ -106,6 +106,7 @@ pub(super) trait RpcWithParams {
     fn register_as_handler(
         node_client: Arc<dyn NodeClient>,
         handlers_builder: &mut RequestHandlersBuilder,
+        limit: ConfigLimit,
     ) {
         let handler = move |maybe_params| {
             let node_client = Arc::clone(&node_client);
@@ -114,7 +115,7 @@ pub(super) trait RpcWithParams {
                 Self::do_handle_request(node_client, params).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, handler);
+        handlers_builder.register_handler(Self::METHOD, handler, limit);
     }
 
     /// Tries to parse the params, and on success, returns the doc example, regardless of the value
@@ -125,7 +126,7 @@ pub(super) trait RpcWithParams {
             let _params = Self::try_parse_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, handler);
+        handlers_builder.register_handler(Self::METHOD, handler, ConfigLimit::default());
     }
 
     async fn do_handle_request(
@@ -166,6 +167,7 @@ pub(super) trait RpcWithoutParams {
     fn register_as_handler(
         node_client: Arc<dyn NodeClient>,
         handlers_builder: &mut RequestHandlersBuilder,
+        limit: ConfigLimit,
     ) {
         let handler = move |maybe_params| {
             let node_client = Arc::clone(&node_client);
@@ -174,7 +176,7 @@ pub(super) trait RpcWithoutParams {
                 Self::do_handle_request(node_client).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, handler);
+        handlers_builder.register_handler(Self::METHOD, handler, limit);
     }
 
     /// Checks the params, and on success, returns the doc example.
@@ -184,7 +186,7 @@ pub(super) trait RpcWithoutParams {
             Self::check_no_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, handler);
+        handlers_builder.register_handler(Self::METHOD, handler, ConfigLimit::default());
     }
 
     async fn do_handle_request(
@@ -247,6 +249,7 @@ pub(super) trait RpcWithOptionalParams {
     fn register_as_handler(
         node_client: Arc<dyn NodeClient>,
         handlers_builder: &mut RequestHandlersBuilder,
+        limit: ConfigLimit,
     ) {
         let handler = move |maybe_params| {
             let node_client = Arc::clone(&node_client);
@@ -255,7 +258,7 @@ pub(super) trait RpcWithOptionalParams {
                 Self::do_handle_request(node_client, params).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, handler);
+        handlers_builder.register_handler(Self::METHOD, handler, limit);
     }
 
     /// Tries to parse the params, and on success, returns the doc example, regardless of the value
@@ -266,7 +269,7 @@ pub(super) trait RpcWithOptionalParams {
             let _params = Self::try_parse_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, handler);
+        handlers_builder.register_handler(Self::METHOD, handler, ConfigLimit::default());
     }
 
     async fn do_handle_request(
@@ -305,7 +308,6 @@ async fn run_service(
     service_routes: BoxedFilter<(impl Reply + 'static,)>,
     server_name: &'static str,
 ) {
-    // TODO: make period configurable, but then rename `qps_limit`.
     // let period = Duration::from_secs(1);
     // let limiter = Arc::new(AddrRateLimiter::keyed(
     //     Quota::with_period(period)
@@ -368,7 +370,6 @@ async fn run_service(
 pub(super) async fn run_with_cors(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
-    limiters: LimiterMap,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -379,7 +380,6 @@ pub(super) async fn run_with_cors(
         max_body_bytes,
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
-        limiters,
         &cors_header,
     );
     run_service(builder, service_routes, server_name).await;
@@ -389,7 +389,6 @@ pub(super) async fn run_with_cors(
 pub(super) async fn run(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
-    limiters: LimiterMap,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -399,7 +398,6 @@ pub(super) async fn run(
         max_body_bytes,
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
-        limiters,
     );
     run_service(builder, service_routes, server_name).await;
 }

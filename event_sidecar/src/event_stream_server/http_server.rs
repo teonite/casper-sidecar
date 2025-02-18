@@ -167,14 +167,10 @@ async fn register_new_subscriber(
         // the wrapping transition.
         let mut observed_protocol_version: Option<ProtocolVersion> = None;
         let buffer_size = buffer.capacity() as Id;
-        let in_wraparound_zone = buffer
-            .iter()
-            .next()
-            .map(|event| {
-                let id = event.1.id.unwrap();
-                id > Id::MAX - buffer_size || id < buffer_size
-            })
-            .unwrap_or_default();
+        let in_wraparound_zone = buffer.iter().next().is_some_and(|event| {
+            let id = event.1.id.unwrap();
+            id > Id::MAX - buffer_size || id < buffer_size
+        });
         for tuple in buffer.iter().skip_while(|tuple| {
             if in_wraparound_zone {
                 tuple.1.id.unwrap().wrapping_add(buffer_size)
@@ -199,10 +195,10 @@ async fn register_new_subscriber(
             observed_events = true;
         }
     }
-    send_api_version_if_necessary(observed_events, latest_protocol_version, subscriber).await;
+    send_api_version_if_necessary(observed_events, latest_protocol_version, subscriber);
 }
 
-async fn send_api_version_if_necessary(
+fn send_api_version_if_necessary(
     observed_events: bool,
     latest_protocol_version: Option<ProtocolVersion>,
     subscriber: NewSubscriberInfo,

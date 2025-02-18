@@ -14,7 +14,7 @@ license = "Apache-2.0"
 bytes = "1.10"
 datasize = { workspace = true }
 futures = { workspace = true }
-governor = "0.8"
+governor = { workspace = true }
 http = "0.2"
 itertools = { workspace = true }
 metrics = { workspace = true }
@@ -25,7 +25,7 @@ warp = { workspace = true }
 
 [dev-dependencies]
 env_logger = "0"
-hyper = "0.14.32"
+hyper = "0.14"
 tokio = { workspace = true, features = [
     "macros",
     "rt-multi-thread",

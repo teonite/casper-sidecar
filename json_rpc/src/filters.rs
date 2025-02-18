@@ -26,7 +26,6 @@ use crate::{
     request::{ErrorOrRejection, Request},
     request_handlers::RequestHandlers,
     response::Response,
-    LimiterMap,
 };
 
 const CONTENT_TYPE_VALUE: &str = "application/json";
@@ -41,16 +40,9 @@ const CONTENT_TYPE_VALUE: &str = "application/json";
 pub fn base_filter<P: AsRef<str> + Eq + Hash + Send + Sync + 'static>(
     path: P,
     max_body_bytes: u64,
-    limiters: LimiterMap,
 ) -> BoxedFilter<()> {
     warp::path::path(path)
         .and(warp::path::end())
-        // .and(warp::path::full())
-        // .and(|| {
-        //     if let Some(limiter) = limiters.get(path.as_ref()) {
-        //         // ...
-        //     }
-        // })
         .and(filters::method::post())
         // .and(
         //     filters::header::headers_cloned().and_then(|headers: HeaderMap| async move {

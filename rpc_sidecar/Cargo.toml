@@ -29,7 +29,7 @@ datasize = { workspace = true, features = ["detailed", "fake_clock-types"] }
 derive-new = { workspace = true }
 forwarded-header-value = "0.1"
 futures = { workspace = true }
-governor = "0.8"
+governor = { workspace = true }
 http = "0.2"
 hyper = "0.14"
 juliet = { version = "0.3", features = ["tracing"] }

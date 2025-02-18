@@ -1261,11 +1261,8 @@ fn extract_header(payload: &[u8]) -> Result<(CommandHeader, &[u8]), anyhow::Erro
         anyhow::bail!("Not enough bytes to read version of the command header");
     }
 
-    let binary_protocol_version = match u16::from_bytes(payload) {
-        Ok((binary_protocol_version, _)) => binary_protocol_version,
-        Err(_) => {
-            anyhow::bail!("Could not read header version from request");
-        }
+    let Ok((binary_protocol_version, _)) = u16::from_bytes(payload) else {
+        anyhow::bail!("Could not read header version from request");
     };
 
     if binary_protocol_version != CommandHeader::HEADER_VERSION {
