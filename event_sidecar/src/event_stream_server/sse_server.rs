@@ -274,8 +274,7 @@ fn should_skip_event(
 
 fn should_send_shutdown(event: &ServerSentEvent, stream_filter: &Endpoint) -> bool {
     match (&event.inbound_filter, stream_filter) {
-        (None, Endpoint::Sidecar) => true,
-        (Some(_), _) => true,
+        (Some(_), _) | (None, Endpoint::Sidecar) => true,
         (None, _) => false,
     }
 }
@@ -396,8 +395,7 @@ fn create_404(enable_legacy_filters: bool) -> Response {
 /// string.
 fn create_422() -> Response {
     let mut response = Response::new(Body::from(format!(
-        "invalid query: expected single field '{}=<EVENT ID>'\n",
-        QUERY_FIELD
+        "invalid query: expected single field '{QUERY_FIELD}=<EVENT ID>'\n"
     )));
     *response.status_mut() = StatusCode::UNPROCESSABLE_ENTITY;
     response

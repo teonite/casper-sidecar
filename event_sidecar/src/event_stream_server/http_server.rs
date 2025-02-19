@@ -39,7 +39,7 @@ pub(super) async fn run(
     mut new_subscriber_info_receiver: mpsc::UnboundedReceiver<NewSubscriberInfo>,
 ) {
     let server_joiner = task::spawn(server_with_shutdown);
-    let mut buffer = build_buffer(config);
+    let mut buffer = build_buffer(&config);
 
     // Start handling received messages from the two channels; info on new client subscribers and
     // incoming events announced by node components.
@@ -69,7 +69,7 @@ pub(super) async fn run(
 }
 
 fn build_buffer(
-    config: Config,
+    config: &Config,
 ) -> WheelBuf<Vec<(ProtocolVersion, ServerSentEvent)>, (ProtocolVersion, ServerSentEvent)> {
     let zero_version = ProtocolVersion::from_parts(0, 0, 0);
     WheelBuf::new(vec![
@@ -110,38 +110,35 @@ fn handle_incoming_data(
     >,
     broadcaster: &broadcast::Sender<BroadcastChannelMessage>,
 ) -> Result<(), ()> {
-    match maybe_data {
-        Some((maybe_event_index, data, inbound_filter)) => {
-            // Buffer the data and broadcast it to subscribed clients.
-            trace!("Event stream server received {data:?}");
-            let event = ServerSentEvent {
-                id: maybe_event_index,
-                comment: None,
-                data: Some(data.clone()),
-                inbound_filter,
-            };
-            match data {
-                SseData::ApiVersion(v) => *latest_protocol_version = Some(v),
-                _ => match latest_protocol_version {
-                    None => {
-                        error!("Trying to buffer data without an api version observed beforehand");
-                    }
-                    Some(v) => {
-                        buffer.push((*v, event.clone()));
-                    }
-                },
-            };
-            let message = BroadcastChannelMessage::ServerSentEvent(event);
-            // This can validly fail if there are no connected clients, so don't log
-            // the error.
-            let _ = broadcaster.send(message);
-            Ok(())
-        }
-        None => {
-            // The data sender has been dropped - exit the loop.
-            info!("shutting down HTTP server");
-            Err(())
-        }
+    if let Some((maybe_event_index, data, inbound_filter)) = maybe_data {
+        // Buffer the data and broadcast it to subscribed clients.
+        trace!("Event stream server received {data:?}");
+        let event = ServerSentEvent {
+            id: maybe_event_index,
+            comment: None,
+            data: Some(data.clone()),
+            inbound_filter,
+        };
+        match data {
+            SseData::ApiVersion(v) => *latest_protocol_version = Some(v),
+            _ => match latest_protocol_version {
+                None => {
+                    error!("Trying to buffer data without an api version observed beforehand");
+                }
+                Some(v) => {
+                    buffer.push((*v, event.clone()));
+                }
+            },
+        };
+        let message = BroadcastChannelMessage::ServerSentEvent(event);
+        // This can validly fail if there are no connected clients, so don't log
+        // the error.
+        let _ = broadcaster.send(message);
+        Ok(())
+    } else {
+        // The data sender has been dropped - exit the loop.
+        info!("shutting down HTTP server");
+        Err(())
     }
 }
 

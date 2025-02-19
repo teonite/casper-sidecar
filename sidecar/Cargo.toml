@@ -10,13 +10,14 @@ repository = "https://github.com/casper-network/casper-sidecar/tree/dev"
 license = "Apache-2.0"
 
 [dependencies]
+async-trait = { workspace = true }
 anyhow = { workspace = true }
-backtrace = "0.3.69"
+backtrace = "0.3"
 casper-event-sidecar = { workspace = true }
-casper-event-types = { workspace = true }
 casper-rpc-sidecar = { workspace = true }
-clap = { version = "4.0.32", features = ["derive"] }
+clap = { version = "4.0", features = ["derive"] }
 datasize = { workspace = true, features = ["detailed", "fake_clock-types"] }
+derive-new = { workspace = true }
 futures = { workspace = true }
 num_cpus = "1"
 serde = { workspace = true, default-features = false, features = [
@@ -32,8 +33,6 @@ tracing-subscriber = { workspace = true, features = [
     "json",
 ] }
 thiserror = { workspace = true }
-derive-new = { workspace = true }
-async-trait = { workspace = true }
 
 [dev-dependencies]
 casper-event-sidecar = { workspace = true, features = ["testing"] }
@@ -41,7 +40,6 @@ casper-rpc-sidecar = { workspace = true, features = ["testing"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = "0.5"
-
 
 [package.metadata.deb]
 revision = "0"

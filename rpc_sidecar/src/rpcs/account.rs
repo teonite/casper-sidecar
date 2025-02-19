@@ -266,6 +266,6 @@ mod tests {
         .await
         .expect_err("should reject request");
 
-        assert_eq!(err.code(), ErrorCode::InvalidTransaction as i64,)
+        assert_eq!(err.code(), ErrorCode::InvalidTransaction as i64);
     }
 }

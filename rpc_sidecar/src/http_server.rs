@@ -1,7 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::IpAddr, sync::Arc};
 
 use casper_json_rpc::{ConfigLimit, CorsOrigin, RequestHandlersBuilder};
-use hyper::server::{conn::AddrIncoming, Builder};
 
 use super::rpcs::{
     account::{PutDeploy, PutTransaction},
@@ -32,7 +31,8 @@ const RPC_API_SERVER_NAME: &str = "JSON RPC";
 /// Run the JSON-RPC server.
 pub async fn run(
     node: Arc<dyn NodeClient>,
-    builder: Builder<AddrIncoming>,
+    ip_address: IpAddr,
+    port: u16,
     mut limits: HashMap<String, ConfigLimit>,
     qps_limit: u32,
     max_body_bytes: u64,
@@ -80,7 +80,8 @@ pub async fn run(
     match cors_origin.as_str() {
         "" => {
             super::rpcs::run(
-                builder,
+                ip_address,
+                port,
                 handlers,
                 qps_limit,
                 max_body_bytes,
@@ -91,7 +92,8 @@ pub async fn run(
         }
         "*" => {
             super::rpcs::run_with_cors(
-                builder,
+                ip_address,
+                port,
                 handlers,
                 qps_limit,
                 max_body_bytes,
@@ -103,7 +105,8 @@ pub async fn run(
         }
         _ => {
             super::rpcs::run_with_cors(
-                builder,
+                ip_address,
+                port,
                 handlers,
                 qps_limit,
                 max_body_bytes,

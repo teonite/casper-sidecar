@@ -31,7 +31,7 @@ impl EraEndV2Translator for DefaultEraEndV2Translator {
     fn translate(&self, era_end: &EraEndV2) -> Option<EraEndV1> {
         let mut rewards = BTreeMap::new();
         for (k, v) in era_end.rewards() {
-            let amount = v.iter().cloned().sum::<U512>();
+            let amount = v.iter().copied().sum::<U512>();
             if amount > U512::from(u64::MAX) {
                 //We're not able to cast the reward to u64, so we skip this era end.
                 return None;

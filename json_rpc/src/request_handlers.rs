@@ -110,7 +110,7 @@ impl RequestHandlersBuilder {
         &mut self,
         method: &'static str,
         handler: Func,
-        limit: ConfigLimit,
+        limit: &ConfigLimit,
     ) where
         Func: Fn(Option<Params>) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<T, Error>> + Send,

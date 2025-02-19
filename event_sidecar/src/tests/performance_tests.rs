@@ -191,7 +191,7 @@ impl Display for EventType {
             EventType::Step => "Step",
             EventType::Shutdown => "Shutdown",
         };
-        write!(f, "{}", string)
+        write!(f, "{string}")
     }
 }
 
@@ -312,7 +312,7 @@ async fn performance_check(scenario: Scenario, duration: Duration, acceptable_la
     tokio::spawn(async move {
         let res = node_event_listener.stream_aggregated_events().await;
         if let Err(error) = res {
-            println!("Node listener Error: {}", error)
+            println!("Node listener Error: {error}");
         }
     });
 
@@ -339,7 +339,7 @@ async fn performance_check(scenario: Scenario, duration: Duration, acceptable_la
     tokio::spawn(async move {
         let res = sidecar_event_listener.stream_aggregated_events().await;
         if let Err(error) = res {
-            println!("Sidecar listener Error: {}", error)
+            println!("Sidecar listener Error: {error}");
         }
     });
 
@@ -375,7 +375,7 @@ async fn performance_check(scenario: Scenario, duration: Duration, acceptable_la
 
     let results_table = build_table_from_results(results, duration);
 
-    println!("{}", results_table);
+    println!("{results_table}");
 
     check_latencies_are_acceptable(average_latencies, acceptable_latency);
 }
@@ -480,7 +480,7 @@ fn check_latencies_are_acceptable(
             "Latency of {} events exceeded acceptable value. Acceptable value {} [s]",
             event_type,
             acceptable_latency.as_secs_f64(),
-        )
+        );
     }
 }
 

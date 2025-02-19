@@ -13,7 +13,6 @@ license = "Apache-2.0"
 [dependencies]
 anyhow = { workspace = true }
 async-trait = "0.1"
-backtrace = "0.3"
 base16 = "0.2"
 bincode = "1"
 bytes = "1.10"
@@ -27,17 +26,13 @@ casper-types = { workspace = true, features = [
 casper-binary-port.workspace = true
 datasize = { workspace = true, features = ["detailed", "fake_clock-types"] }
 derive-new = { workspace = true }
-forwarded-header-value = "0.1"
 futures = { workspace = true }
 governor = { workspace = true }
 http = "0.2"
 hyper = "0.14"
-juliet = { version = "0.3", features = ["tracing"] }
 metrics = { workspace = true }
-num_cpus = "1"
 num-traits = { version = "0.2", default-features = false }
 once_cell.workspace = true
-pin-project = "1"
 portpicker = "0.1"
 rand = "0.8"
 schemars = { version = "0.8", features = [
@@ -50,14 +45,7 @@ serde-map-to-array = "1.1"
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-util = { version = "0.6", features = ["codec"] }
-toml = { workspace = true }
-tower = { version = "0.5", features = ["limit", "util"] }
 tracing = { workspace = true, default-features = true }
-tracing-subscriber = { workspace = true, features = [
-    "env-filter",
-    "fmt",
-    "json",
-] }
 warp = { workspace = true, features = ["compression"] }
 
 [dev-dependencies]

@@ -620,12 +620,11 @@ fn parse_response(response_text: String, client_id: &str) -> Vec<ReceivedEvent> 
                 }
                 if data_line.trim().is_empty() || data_line.trim() == ":" {
                     continue;
-                } else {
-                    panic!(
-                        "{}: data line should start with 'data:'\n{}",
-                        client_id, data_line
-                    )
                 }
+                panic!(
+                    "{}: data line should start with 'data:'\n{}",
+                    client_id, data_line
+                )
             }
         };
 

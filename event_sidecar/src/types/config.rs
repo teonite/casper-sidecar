@@ -103,7 +103,7 @@ impl StorageConfig {
 
     #[cfg(test)]
     pub(crate) fn set_storage_folder(&mut self, path: String) {
-        self.storage_folder = path.clone();
+        self.storage_folder = path;
     }
 
     #[cfg(test)]

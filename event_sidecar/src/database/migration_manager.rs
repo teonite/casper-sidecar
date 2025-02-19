@@ -69,12 +69,12 @@ where
             migrations
                 .into_iter()
                 .filter(|el| el.get_version().is_some() && el.get_version().unwrap() > v)
-                .sorted_by_key(|x| x.get_version())
+                .sorted_by_key(Migration::get_version)
                 .collect::<Vec<Migration>>()
         } else {
             migrations
                 .into_iter()
-                .sorted_by_key(|x| x.get_version())
+                .sorted_by_key(Migration::get_version)
                 .collect::<Vec<Migration>>()
         };
 

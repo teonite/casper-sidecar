@@ -34,9 +34,7 @@ hex = "0.4.3"
 hex_fmt = "0.3.0"
 http = "0.2.1"
 hyper = "0.14.4"
-indexmap = "2.0.0"
 itertools = { workspace = true }
-jsonschema = "0.17.1"
 metrics = { workspace = true }
 pin-project = "1.1.5"
 rand = "0.8.3"
@@ -64,7 +62,6 @@ tower = { version = "0.4.13", features = [
     "timeout",
 ] }
 tracing = { workspace = true, default-features = true }
-tracing-subscriber = { workspace = true }
 utoipa = { version = "4", features = ["rc_schema"] }
 utoipa-swagger-ui = { version = "6" }
 warp = { workspace = true, features = ["compression"] }

@@ -1,9 +1,9 @@
 //! The set of JSON-RPCs which the API server handles.
 
 use std::{
-    convert::{Infallible, TryFrom},
+    convert::TryFrom,
     fmt,
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroU32,
     str,
     sync::Arc,
@@ -34,18 +34,10 @@ use http::{
     header::{ACCEPT_ENCODING, FORWARDED, RETRY_AFTER},
     StatusCode,
 };
-use hyper::{
-    server::{
-        conn::{AddrIncoming, AddrStream},
-        Builder,
-    },
-    service::make_service_fn,
-};
 use schemars::JsonSchema;
 use serde::{de::Error as SerdeError, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{json, Value};
 use tokio::sync::oneshot;
-use tower::ServiceBuilder;
 use tracing::info;
 use warp::{
     filters::BoxedFilter,
@@ -131,7 +123,7 @@ pub(super) trait RpcWithParams {
                 Self::do_handle_request(node_client, params).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, handler, limit);
+        handlers_builder.register_handler(Self::METHOD, handler, &limit);
     }
 
     /// Tries to parse the params, and on success, returns the doc example, regardless of the value
@@ -142,7 +134,7 @@ pub(super) trait RpcWithParams {
             let _params = Self::try_parse_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, handler, ConfigLimit::default());
+        handlers_builder.register_handler(Self::METHOD, handler, &ConfigLimit::default());
     }
 
     async fn do_handle_request(
@@ -192,7 +184,7 @@ pub(super) trait RpcWithoutParams {
                 Self::do_handle_request(node_client).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, handler, limit);
+        handlers_builder.register_handler(Self::METHOD, handler, &limit);
     }
 
     /// Checks the params, and on success, returns the doc example.
@@ -202,7 +194,7 @@ pub(super) trait RpcWithoutParams {
             Self::check_no_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, handler, ConfigLimit::default());
+        handlers_builder.register_handler(Self::METHOD, handler, &ConfigLimit::default());
     }
 
     async fn do_handle_request(
@@ -274,7 +266,7 @@ pub(super) trait RpcWithOptionalParams {
                 Self::do_handle_request(node_client, params).await
             }
         };
-        handlers_builder.register_handler(Self::METHOD, handler, limit);
+        handlers_builder.register_handler(Self::METHOD, handler, &limit);
     }
 
     /// Tries to parse the params, and on success, returns the doc example, regardless of the value
@@ -285,7 +277,7 @@ pub(super) trait RpcWithOptionalParams {
             let _params = Self::try_parse_params(maybe_params)?;
             Ok(Self::ResponseResult::doc_example())
         };
-        handlers_builder.register_handler(Self::METHOD, handler, ConfigLimit::default());
+        handlers_builder.register_handler(Self::METHOD, handler, &ConfigLimit::default());
     }
 
     async fn do_handle_request(
@@ -320,7 +312,8 @@ async fn handle_rejection(error: Rejection) -> Result<impl Reply, Rejection> {
 
 /// The actual service runner, common to `run()` and `run_with_cors()`.
 async fn run_service(
-    builder: Builder<AddrIncoming>,
+    ip_address: IpAddr,
+    port: u16,
     service_routes: BoxedFilter<(impl Reply + 'static,)>,
     server_name: &'static str,
     qps_limit: u32,
@@ -329,55 +322,45 @@ async fn run_service(
         NonZeroU32::new(qps_limit).unwrap(),
     )));
 
-    let make_svc = make_service_fn(move |socket: &AddrStream| {
-        let remote_addr = socket.remote_addr();
-        let limiter = limiter.clone();
-
-        // Try to get client's IP address from headers, with fallback to connection IP address.
-        let host_ip = warp::header(X_REAL_IP)
-            .or(warp::header(X_FORWARDED_FOR))
-            .unify()
-            .or(warp::header(FORWARDED.as_str()))
-            .unify()
-            .or(warp::addr::remote()
-                .map(move |remote: Option<SocketAddr>| remote.unwrap_or(remote_addr).ip()))
-            .unify()
-            .and_then(move |ip_addr: IpAddr| {
-                let limiter = limiter.clone();
-                async move {
-                    if let Err(negative) = limiter.check_key(&ip_addr) {
-                        let wait_time = negative.wait_time_from(DefaultClock::default().now());
-                        Err(warp::reject::custom(TooManyRequests(wait_time)))
-                    } else {
-                        Ok(())
-                    }
+    // Try to get client's IP address from headers, with fallback to connection IP address.
+    let host_ip = warp::header(X_REAL_IP)
+        .or(warp::header(X_FORWARDED_FOR))
+        .unify()
+        .or(warp::header(FORWARDED.as_str()))
+        .unify()
+        .or(warp::addr::remote().map(move |remote: Option<SocketAddr>| {
+            remote.map_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED), |remote| remote.ip())
+        }))
+        .unify()
+        .and_then(move |ip_addr: IpAddr| {
+            let limiter = limiter.clone();
+            async move {
+                if let Err(negative) = limiter.check_key(&ip_addr) {
+                    let wait_time = negative.wait_time_from(DefaultClock::default().now());
+                    Err(warp::reject::custom(TooManyRequests(wait_time)))
+                } else {
+                    Ok(())
                 }
-            })
-            .untuple_one();
+            }
+        })
+        .untuple_one();
 
-        // Supports content negotiation for gzip responses. This is an interim fix until
-        // https://github.com/seanmonstar/warp/pull/513 moves forward.
-        let service_routes_gzip = warp::header::exact(ACCEPT_ENCODING.as_str(), "gzip")
-            .and(service_routes.clone())
-            .with(warp::compression::gzip());
+    // Supports content negotiation for gzip responses. This is an interim fix until
+    // https://github.com/seanmonstar/warp/pull/513 moves forward.
+    let service_routes_gzip = warp::header::exact(ACCEPT_ENCODING.as_str(), "gzip")
+        .and(service_routes.clone())
+        .with(warp::compression::gzip());
 
-        let service = warp::service(
-            host_ip
-                .and(service_routes_gzip.or(service_routes.clone()))
-                .recover(handle_rejection),
-        );
-        async move { Ok::<_, Infallible>(service) }
-    });
-
-    let service = ServiceBuilder::new().service(make_svc);
-
-    let server = builder.serve(service);
-    info!(address = %server.local_addr(), "started {server_name} server");
-
-    let (shutdown_sender, shutdown_receiver) = oneshot::channel::<()>();
-    let server_with_shutdown = server.with_graceful_shutdown(async {
+    let (shutdown_sender, shutdown_receiver) = oneshot::channel();
+    let (address, server_with_shutdown) = warp::serve(
+        host_ip
+            .and(service_routes_gzip.or(service_routes.clone()))
+            .recover(handle_rejection),
+    )
+    .bind_with_graceful_shutdown((ip_address, port), async {
         shutdown_receiver.await.ok();
     });
+    info!(address = %address, "started {server_name} server");
 
     let _ = tokio::spawn(server_with_shutdown).await;
     let _ = shutdown_sender.send(());
@@ -386,7 +369,8 @@ async fn run_service(
 
 /// Start JSON RPC server with CORS enabled in a background.
 pub(super) async fn run_with_cors(
-    builder: Builder<AddrIncoming>,
+    ip_address: IpAddr,
+    port: u16,
     handlers: RequestHandlers,
     qps_limit: u32,
     max_body_bytes: u64,
@@ -401,12 +385,13 @@ pub(super) async fn run_with_cors(
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
         &cors_header,
     );
-    run_service(builder, service_routes, server_name, qps_limit).await;
+    run_service(ip_address, port, service_routes, server_name, qps_limit).await;
 }
 
 /// Start JSON RPC server in a background.
 pub(super) async fn run(
-    builder: Builder<AddrIncoming>,
+    ip_address: IpAddr,
+    port: u16,
     handlers: RequestHandlers,
     qps_limit: u32,
     max_body_bytes: u64,
@@ -419,7 +404,7 @@ pub(super) async fn run(
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
     );
-    run_service(builder, service_routes, server_name, qps_limit).await;
+    run_service(ip_address, port, service_routes, server_name, qps_limit).await;
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]

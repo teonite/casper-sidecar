@@ -9,12 +9,8 @@ homepage = "https://github.com/casper-network/casper-sidecar/"
 repository = "https://github.com/casper-network/casper-sidecar/"
 
 [dependencies]
-base16 = "0.2.1"
 blake2 = { version = "0.10", optional = true }
 casper-types = { workspace = true, features = ["std"] }
-hex-buffer-serde = "0.4"
-hex_fmt = "0.3"
-itertools = { workspace = true }
 mockall = "0.13"
 once_cell = { workspace = true }
 pretty_assertions = "1.4"
@@ -28,7 +24,6 @@ serde_json = { version = "1.0", default-features = false, features = [
     "raw_value",
 ] }
 thiserror = { workspace = true }
-utoipa = { version = "4", features = ["rc_schema"] }
 
 [features]
 sse-data-testing = ["blake2", "casper-types/testing", "rand"]

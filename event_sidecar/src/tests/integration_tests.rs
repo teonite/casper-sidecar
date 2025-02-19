@@ -241,7 +241,7 @@ async fn should_respond_to_rest_query() {
         fetch_data_from_endpoint("/events?start_from=0", event_stream_server_port).await;
     wait_for_n_messages(1, receiver, Duration::from_secs(30)).await;
 
-    let block_request_url = format!("http://127.0.0.1:{}/block", sidecar_rest_server_port);
+    let block_request_url = format!("http://127.0.0.1:{sidecar_rest_server_port}/block");
     let response = reqwest::Client::new()
         .get(&block_request_url)
         .send()
@@ -449,7 +449,7 @@ async fn connecting_to_node_prior_to_2_0_0_should_fail() {
     assert_eq!(
         shutdown_err.to_string(),
         "Connected node(s) are unavailable"
-    )
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
@@ -491,7 +491,7 @@ async fn connecting_to_node_with_wrong_network_name_should_fail() {
     assert_eq!(
         shutdown_err.to_string(),
         "Connected node(s) are unavailable"
-    )
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
