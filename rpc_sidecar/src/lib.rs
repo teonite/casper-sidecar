@@ -99,6 +99,7 @@ async fn run_rpc(config: RpcConfig, node_client: Arc<dyn NodeClient>) -> Result<
         node_client,
         start_listening(&SocketAddr::new(config.ip_address, config.port))?,
         config.limits,
+        config.qps_limit,
         config.max_body_bytes,
         config.cors_origin,
     )
@@ -114,6 +115,7 @@ async fn run_speculative_exec(
         node_client,
         start_listening(&SocketAddr::new(config.ip_address, config.port))?,
         config.limits,
+        config.qps_limit,
         config.max_body_bytes,
         config.cors_origin,
     )

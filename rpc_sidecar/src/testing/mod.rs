@@ -29,6 +29,7 @@ pub struct BinaryPortMock {
 }
 
 impl BinaryPortMock {
+    #[must_use]
     pub fn new(port: u16, response: Vec<u8>, number_of_responses: u8) -> Self {
         Self {
             port,

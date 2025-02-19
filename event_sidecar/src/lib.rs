@@ -16,7 +16,7 @@ pub(crate) mod testing;
 pub(crate) mod tests;
 mod types;
 mod utils;
-use std::{collections::HashMap, path::PathBuf, process::ExitCode, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, process::ExitCode, sync::Arc, time::Duration};
 
 use crate::types::config::LegacySseApiTag;
 use crate::{
@@ -113,7 +113,7 @@ fn start_event_broadcasting(
                 Some(buffer_length),
                 Some(max_concurrent_subscribers),
             ),
-            PathBuf::from(index_storage_folder),
+            Path::new(&index_storage_folder),
             enable_legacy_filters,
         )
         .context("Error starting EventStreamServer")?;

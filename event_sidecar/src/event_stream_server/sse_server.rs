@@ -240,7 +240,7 @@ fn filter_map_server_sent_event(
             }
             &SseData::Shutdown => {
                 if should_send_shutdown(event, stream_filter) {
-                    build_event_for_outbound(event, data, id)
+                    Some(build_event_for_outbound(event, data, id))
                 } else {
                     None
                 }
@@ -307,15 +307,15 @@ fn build_event_for_outbound(
     event: &ServerSentEvent,
     data: &SseData,
     id: String,
-) -> Option<Result<WarpServerSentEvent, RecvError>> {
+) -> Result<WarpServerSentEvent, RecvError> {
     let json_value = serde_json::to_value(data).unwrap();
-    Some(Ok(WarpServerSentEvent::default()
+    Ok(WarpServerSentEvent::default()
         .json_data(&json_value)
         .unwrap_or_else(|error| {
             warn!(%error, ?event, "failed to jsonify sse event");
             WarpServerSentEvent::default()
         })
-        .id(id)))
+        .id(id))
 }
 
 pub(super) fn path_to_filter(

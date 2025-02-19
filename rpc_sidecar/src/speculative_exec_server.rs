@@ -22,6 +22,7 @@ pub async fn run(
     node: Arc<dyn NodeClient>,
     builder: Builder<AddrIncoming>,
     mut limits: HashMap<String, ConfigLimit>,
+    qps_limit: u32,
     max_body_bytes: u64,
     cors_origin: String,
 ) {
@@ -45,6 +46,7 @@ pub async fn run(
             super::rpcs::run(
                 builder,
                 handlers,
+                qps_limit,
                 max_body_bytes,
                 SPECULATIVE_EXEC_API_PATH,
                 SPECULATIVE_EXEC_SERVER_NAME,
@@ -55,6 +57,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
+                qps_limit,
                 max_body_bytes,
                 SPECULATIVE_EXEC_API_PATH,
                 SPECULATIVE_EXEC_SERVER_NAME,
@@ -66,6 +69,7 @@ pub async fn run(
             super::rpcs::run_with_cors(
                 builder,
                 handlers,
+                qps_limit,
                 max_body_bytes,
                 SPECULATIVE_EXEC_API_PATH,
                 SPECULATIVE_EXEC_SERVER_NAME,

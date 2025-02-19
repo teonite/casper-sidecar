@@ -18,14 +18,17 @@ struct AdminServer {
 impl AdminServer {
     pub async fn start(&self) -> Result<(), Error> {
         let api = root_filter().or(metrics_filter());
-        let address = format!("{}:{}", BIND_ALL_INTERFACES, self.port);
+        let address = format!("{BIND_ALL_INTERFACES}:{}", self.port);
         let socket_address = resolve_address(&address)?;
         let listener = TcpListener::bind(socket_address)?;
 
         let warp_service = warp::service(api);
         let tower_service = ServiceBuilder::new()
             .concurrency_limit(self.max_concurrent_requests as usize)
-            .rate_limit(self.max_requests_per_second as u64, Duration::from_secs(1))
+            .rate_limit(
+                u64::from(self.max_requests_per_second),
+                Duration::from_secs(1),
+            )
             .service(warp_service);
         info!(address = %address, "started Admin API server");
         Server::from_tcp(listener)?
@@ -45,7 +48,7 @@ pub async fn run_server(config: AdminApiServerConfig) -> Result<ExitCode, Error>
         }
         .start()
         .await
-        .map(|_| ExitCode::SUCCESS)
+        .map(|()| ExitCode::SUCCESS)
     } else {
         info!("Admin API server is disabled. Skipping...");
         Ok(ExitCode::SUCCESS)

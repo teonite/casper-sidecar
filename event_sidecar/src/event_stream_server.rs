@@ -32,7 +32,7 @@ use casper_event_types::{sse_data::SseData, Filter as SseFilter};
 pub use config::Config;
 use event_indexer::{EventIndex, EventIndexer};
 use sse_server::ChannelsAndFilter;
-use std::{fmt::Debug, net::SocketAddr, path::PathBuf};
+use std::{fmt::Debug, net::SocketAddr, path::Path};
 use tokio::sync::{
     mpsc::{self, UnboundedSender},
     oneshot,
@@ -65,11 +65,11 @@ pub(crate) struct EventStreamServer {
 impl EventStreamServer {
     pub(crate) fn new(
         config: Config,
-        storage_path: PathBuf,
+        storage_path: &Path,
         enable_legacy_filters: bool,
     ) -> Result<Self, ListeningError> {
         let required_address = resolve_address_and_retype(&config.address)?;
-        let event_indexer = EventIndexer::new(&storage_path);
+        let event_indexer = EventIndexer::new(storage_path);
         let (sse_data_sender, sse_data_receiver) = mpsc::unbounded_channel();
 
         // Event stream channels and filter.

@@ -18,7 +18,7 @@ pub(super) struct EventIndexer {
 impl EventIndexer {
     #![allow(clippy::cognitive_complexity)]
     pub(super) fn new(storage_path: &Path) -> Self {
-        fs::create_dir_all(&storage_path).unwrap_or_else(|err| {
+        fs::create_dir_all(storage_path).unwrap_or_else(|err| {
             error!("Failed to create directory for sse cache: {err}");
         });
         let persistent_cache = storage_path.join(CACHE_FILENAME);

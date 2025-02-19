@@ -2,8 +2,12 @@
 
 use std::{
     convert::{Infallible, TryFrom},
-    fmt, str,
+    fmt,
+    net::{IpAddr, SocketAddr},
+    num::NonZeroU32,
+    str,
     sync::Arc,
+    time::Duration,
 };
 
 pub mod account;
@@ -22,7 +26,14 @@ pub(crate) mod test_utils;
 mod types;
 
 use async_trait::async_trait;
-use http::header::ACCEPT_ENCODING;
+use governor::{
+    clock::{Clock, DefaultClock},
+    DefaultKeyedRateLimiter, Quota,
+};
+use http::{
+    header::{ACCEPT_ENCODING, FORWARDED, RETRY_AFTER},
+    StatusCode,
+};
 use hyper::{
     server::{
         conn::{AddrIncoming, AddrStream},
@@ -32,11 +43,16 @@ use hyper::{
 };
 use schemars::JsonSchema;
 use serde::{de::Error as SerdeError, Deserialize, Deserializer, Serialize, Serializer};
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio::sync::oneshot;
 use tower::ServiceBuilder;
 use tracing::info;
-use warp::{filters::BoxedFilter, reply::Reply, Filter};
+use warp::{
+    filters::BoxedFilter,
+    reject::{Reject, Rejection},
+    reply::{self, Reply},
+    Filter,
+};
 
 use casper_json_rpc::{
     ConfigLimit, CorsOrigin, Error as RpcError, Params, RequestHandlers, RequestHandlersBuilder,
@@ -278,68 +294,66 @@ pub(super) trait RpcWithOptionalParams {
     ) -> Result<Self::ResponseResult, RpcError>;
 }
 
-// const X_FORWARDED_FOR: &str = "x-forwarded-for";
-// const X_REAL_IP: &str = "x-real-ip";
+const X_FORWARDED_FOR: &str = "x-forwarded-for";
+const X_REAL_IP: &str = "x-real-ip";
 
-// #[derive(Debug)]
-// struct TooManyRequests(Duration);
+#[derive(Debug)]
+struct TooManyRequests(Duration);
 
-// impl Reject for TooManyRequests {}
+impl Reject for TooManyRequests {}
 
-// async fn handle_rejection(error: Rejection) -> Result<impl Reply, Rejection> {
-//     if let Some(rejection) = error.find::<TooManyRequests>() {
-//         let response = reply::with_status(
-//             reply::json(&json!({ "message": "Too many requests" })),
-//             StatusCode::TOO_MANY_REQUESTS,
-//         );
-//         Ok(reply::with_header(
-//             response,
-//             RETRY_AFTER,
-//             rejection.0.as_secs().to_string(),
-//         ))
-//     } else {
-//         Err(error)
-//     }
-// }
+async fn handle_rejection(error: Rejection) -> Result<impl Reply, Rejection> {
+    if let Some(rejection) = error.find::<TooManyRequests>() {
+        let response = reply::with_status(
+            reply::json(&json!({ "message": "Too many requests" })),
+            StatusCode::TOO_MANY_REQUESTS,
+        );
+        Ok(reply::with_header(
+            response,
+            RETRY_AFTER,
+            rejection.0.as_secs().to_string(),
+        ))
+    } else {
+        Err(error)
+    }
+}
 
 /// The actual service runner, common to `run()` and `run_with_cors()`.
 async fn run_service(
     builder: Builder<AddrIncoming>,
     service_routes: BoxedFilter<(impl Reply + 'static,)>,
     server_name: &'static str,
+    qps_limit: u32,
 ) {
-    // let period = Duration::from_secs(1);
-    // let limiter = Arc::new(AddrRateLimiter::keyed(
-    //     Quota::with_period(period)
-    //         .unwrap()
-    //         .allow_burst(NonZeroU32::new(10).unwrap()),
-    // ));
+    let limiter = Arc::new(DefaultKeyedRateLimiter::keyed(Quota::per_second(
+        NonZeroU32::new(qps_limit).unwrap(),
+    )));
 
-    let make_svc = make_service_fn(move |_socket: &AddrStream| {
-        // let remote_addr = socket.remote_addr();
-        // let limiter = limiter.clone();
+    let make_svc = make_service_fn(move |socket: &AddrStream| {
+        let remote_addr = socket.remote_addr();
+        let limiter = limiter.clone();
 
         // Try to get client's IP address from headers, with fallback to connection IP address.
-        // let host_ip = warp::header(X_REAL_IP)
-        //     .or(warp::header(X_FORWARDED_FOR))
-        //     .unify()
-        //     .or(warp::header(FORWARDED.as_str()))
-        //     .unify()
-        //     .or(warp::addr::remote()
-        //         .map(move |remote: Option<SocketAddr>| remote.unwrap_or(remote_addr).ip()))
-        //     .unify()
-        //     .and_then(move |ip_addr: IpAddr| {
-        //         let limiter = limiter.clone();
-        //         async move {
-        //             if let Err(negative) = limiter.check_key(&ip_addr) {
-        //                 let wait_time = negative.wait_time_from(DefaultClock::default().now());
-        //                 Err(warp::reject::custom(TooManyRequests(wait_time)))
-        //             } else {
-        //                 Ok(())
-        //             }
-        //         }
-        //     })
-        //     .untuple_one();
+        let host_ip = warp::header(X_REAL_IP)
+            .or(warp::header(X_FORWARDED_FOR))
+            .unify()
+            .or(warp::header(FORWARDED.as_str()))
+            .unify()
+            .or(warp::addr::remote()
+                .map(move |remote: Option<SocketAddr>| remote.unwrap_or(remote_addr).ip()))
+            .unify()
+            .and_then(move |ip_addr: IpAddr| {
+                let limiter = limiter.clone();
+                async move {
+                    if let Err(negative) = limiter.check_key(&ip_addr) {
+                        let wait_time = negative.wait_time_from(DefaultClock::default().now());
+                        Err(warp::reject::custom(TooManyRequests(wait_time)))
+                    } else {
+                        Ok(())
+                    }
+                }
+            })
+            .untuple_one();
 
         // Supports content negotiation for gzip responses. This is an interim fix until
         // https://github.com/seanmonstar/warp/pull/513 moves forward.
@@ -347,7 +361,11 @@ async fn run_service(
             .and(service_routes.clone())
             .with(warp::compression::gzip());
 
-        let service = warp::service(service_routes_gzip.or(service_routes.clone()));
+        let service = warp::service(
+            host_ip
+                .and(service_routes_gzip.or(service_routes.clone()))
+                .recover(handle_rejection),
+        );
         async move { Ok::<_, Infallible>(service) }
     });
 
@@ -370,6 +388,7 @@ async fn run_service(
 pub(super) async fn run_with_cors(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
+    qps_limit: u32,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -382,13 +401,14 @@ pub(super) async fn run_with_cors(
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
         &cors_header,
     );
-    run_service(builder, service_routes, server_name).await;
+    run_service(builder, service_routes, server_name, qps_limit).await;
 }
 
 /// Start JSON RPC server in a background.
 pub(super) async fn run(
     builder: Builder<AddrIncoming>,
     handlers: RequestHandlers,
+    qps_limit: u32,
     max_body_bytes: u64,
     api_path: &'static str,
     server_name: &'static str,
@@ -399,7 +419,7 @@ pub(super) async fn run(
         handlers,
         ALLOW_UNKNOWN_FIELDS_IN_JSON_RPC_REQUEST,
     );
-    run_service(builder, service_routes, server_name).await;
+    run_service(builder, service_routes, server_name, qps_limit).await;
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -438,7 +458,6 @@ impl fmt::Display for ApiVersion {
 mod tests {
     use std::fmt::Write;
 
-    use http::StatusCode;
     use warp::{filters::BoxedFilter, Filter, Reply};
 
     use casper_json_rpc::{filters, Response};
